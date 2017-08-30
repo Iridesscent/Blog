@@ -33,28 +33,27 @@ select(),poll()模型都是水平触发模式，信号驱动IO是边缘触发模
 
 我们来验证以下几个内容：
 
-1.水平触发的非阻塞sockfd
+1. 水平触发的非阻塞sockfd
 
-2.边缘触发的非阻塞sockfd
+2. 边缘触发的非阻塞sockfd
 
-3.水平触发的阻塞connfd
+3. 水平触发的阻塞connfd
 
-4.水平触发的非阻塞connfd
+4. 水平触发的非阻塞connfd
 
-5.边缘触发的阻塞connfd
+5. 边缘触发的阻塞connfd
 
-6.边缘触发的非阻塞connfd
+6. 边缘触发的非阻塞connfd
 
 以上没有验证阻塞的sockfd，因为epoll_wait()返回必定是已就绪的连接，设不设置阻塞accept()都会立即返回。例外：UNP里面有个例子，在BSD上，使用select()模型。设置阻塞的监听sockfd时，当客户端发起连接请求，由于服务器繁忙没有来得及accept()，此时客户端自己又断开，当服务器到达accept()时，会出现阻塞。本机测试epoll()模型没有出现这种情况，我们就暂且忽略这种情况！！！
 
 **三.验证代码                                                         **
 
 文件名：epoll_lt_et.c
-<pre class="lang:c++ decode:true">/* 
+```/* 
  *url:http://www.cnblogs.com/yuuyuu/p/5103744.html
  *
  */
-
 #include &lt;stdio.h&gt;
 #include &lt;stdlib.h&gt;
 #include &lt;string.h&gt;
@@ -325,7 +324,8 @@ int main(int argc, const char *argv[])
 
     close(sockfd);
     return 0;
-}</pre>
+}
+```
 **四.验证                                                                **
 
 1.验证水平触发的非阻塞sockfd，关键代码在247行。编译运行
