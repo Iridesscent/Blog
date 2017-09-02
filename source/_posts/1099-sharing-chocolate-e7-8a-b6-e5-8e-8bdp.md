@@ -16,7 +16,8 @@ dp[mask][r] 代表一边长为r的方格能否用mask的二进制为对应的小
 &nbsp;
 
 AC代码：
-<pre class="lang:c++ decode:true ">#pragma comment(linker, "/STACK:102400000,102400000")
+```
+#pragma comment(linker, "/STACK:102400000,102400000")
 #include&lt;cstdio&gt;
 #include&lt;cstring&gt;
 #include&lt;algorithm&gt;
@@ -120,5 +121,4 @@ int main() {
 2 2
 1 1 1 1
 */
-</pre>
-&nbsp;
+```

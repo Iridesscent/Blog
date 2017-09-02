@@ -8,7 +8,8 @@ tags:
 ---
 
 数链剖分，处理一下重链之间的数值是否相同
-<pre class="lang:c++ decode:true ">#include &lt;cstdio&gt;
+```
+#include &lt;cstdio&gt;
 #include &lt;cstring&gt;
 #include &lt;algorithm&gt;
 #include &lt;cmath&gt;
@@ -288,5 +289,5 @@ int main() {
 
   }
   return 0;
-}</pre>
-&nbsp;
+}
+```

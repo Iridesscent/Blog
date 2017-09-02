@@ -5,7 +5,7 @@ tags:
   - Data structure
   - Splay
 date: 2016-05-18 17:50:01
-tags:
+categories:
   - Algorithm
 ---
 
@@ -24,7 +24,7 @@ tags:
 伸展树模板题，，还是挺费劲的，，太弱了。。
 
 AC代码：
-<pre class="lang:c++ decode:true ">#include &lt;cstdio&gt;
+```
 #include &lt;iostream&gt;
 #include&lt;map&gt;
 #include &lt;cstring&gt;
@@ -185,5 +185,4 @@ int main() {
     }
     return 0;
 }
-</pre>
-&nbsp;
+```

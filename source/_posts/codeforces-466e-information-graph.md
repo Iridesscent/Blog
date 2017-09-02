@@ -29,7 +29,8 @@ date: 2016-03-09 20:09:46
 这里要注意一点，给出的图可能是一个森林，如果是的话就设置一个虚拟节点，在LCA查询是调到同一高度后不要在虚拟节点上就行了。
 
 **AC代码：**
-<pre class="lang:default decode:true " title="Codeforces 466 E Information Graph">#include &lt;cstdio&gt;
+```
+#include &lt;cstdio&gt;
 #include &lt;cstring&gt;
 #include &lt;iostream&gt;
 #include &lt;algorithm&gt;
@@ -188,5 +189,4 @@ int main() {
 2 3
 3 1 1
 */
-</pre>
-&nbsp;
+```

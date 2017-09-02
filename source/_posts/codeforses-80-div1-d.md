@@ -25,7 +25,8 @@ categories:
 b大时复杂度每次查询复杂度O(√n)，b小时tmp数组最多更新√n次，总复杂度O(n√n).
 
 AC代码：
-<pre class="lang:c++ decode:true ">#include &lt;cstdio&gt;
+```
+#include &lt;cstdio&gt;
 #include &lt;cstring&gt;
 #include &lt;algorithm&gt;
 #include &lt;vector&gt;
@@ -78,5 +79,4 @@ int main() {
     for(int i = 0 ; i &lt; q ; i++) printf("%I64d\n", ans[i]);
     return 0;
 }
-</pre>
-&nbsp;
+```

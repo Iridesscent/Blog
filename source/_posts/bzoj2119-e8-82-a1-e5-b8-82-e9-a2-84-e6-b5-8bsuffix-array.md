@@ -22,7 +22,8 @@ categories:
 对于每个i， j 令a = j + i - 1, b = j + i * 2 + m - 1，也就是第一个A的末尾和第二个A的末尾，求出向后的lcp长度last和向前的lcp长度pre(当然， pre和last不能大于块的长度)，这样只要第一个A完全包含在[a - pre + 1, a + last - 1]内，这样的都是对于一对i， j要统计的，也就是答案累加max(0, pre + last - i)
 
 AC代码：
-<pre class="lang:c++ decode:true ">#include &lt;cstdio&gt;
+```
+#include &lt;cstdio&gt;
 #include &lt;cstring&gt;
 #include &lt;algorithm&gt;
 #include &lt;cmath&gt;
@@ -164,5 +165,4 @@ int main() {
   printf("%lld\n", ans);
   return 0;
 }
-</pre>
-&nbsp;
+```

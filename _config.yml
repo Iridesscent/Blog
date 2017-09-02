@@ -7,7 +7,7 @@ title: Donglin's Blog
 subtitle:
 description:
 author: Donglin
-language:
+language: en
 timezone:
 
 # URL
@@ -72,7 +72,14 @@ pagination_dir: page
 # Extensions
 ## Plugins: https://hexo.io/plugins/
 ## Themes: https://hexo.io/themes/
-theme: landscape
+theme: next
+
+
+menu:
+  home: /
+  archives: /archives
+  tags: /tags
+  categories: /categories
 
 # Deployment
 ## Docs: https://hexo.io/docs/deployment.html

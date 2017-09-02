@@ -20,7 +20,8 @@ date: 2016-03-01 11:17:45
 2.  因此我们要在得到的DAG中建立适当的边，数量尽量少，使得DAG中得点入度初度都不为零
 3.  因此建立的边数=max{a, b}，因为从一个初度为零的点连出一条边到一个入度为零得点，这样a和b每次都减一，a，b有一个为零的时候再从剩下的点各连max{a - min{a, b}, b - min{a, b}}条边就好了。
 **AC代码：**
-<pre class="lang:c++ decode:true " title="UVA12167 - Proving Equivalences">#include&lt;cstdio&gt;
+```
+#include&lt;cstdio&gt;
 #include&lt;iostream&gt;
 #include&lt;cstring&gt;
 #include&lt;string&gt;
@@ -123,5 +124,4 @@ int main() {
     }
     return 0;
 }
-</pre>
-&nbsp;
+```
