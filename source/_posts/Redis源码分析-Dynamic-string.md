@@ -184,7 +184,7 @@ sds sdsnewlen(const void *init, size_t initlen) {
 }
 ```
 
-### sds 扩容
+## sds 扩容
 扩容策略根据新字符串所需内存大小来进行翻倍扩容还是先行扩容，详细见注释。
 ```
 /* Enlarge the free space at the end of the sds string so that the caller
