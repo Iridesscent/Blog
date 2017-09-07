@@ -1,5 +1,5 @@
 ---
-title: Redis源码分析-Dynamic string
+title: Redis源码分析-2-2-Dynamic string
 date: 2017-09-02 16:05:18
 tags:
   - Redis

@@ -1,5 +1,5 @@
 ---
-title: Redis源码分析-内存管理
+title: Redis源码分析(1)-内存管理
 date: 2017-08-31 20:40:53
 categories:
   - Redis源码分析
