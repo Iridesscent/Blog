@@ -21,7 +21,7 @@ skiplist 是一个分层的链式数据结构，对于一个节点，每一层�
 而插入一个节点的时候，会以一个概率递减创建更高层。比如redis中这个概率是0.25，则插入新的节点时，有0.25的概率会创建两层节点，(0.25)^2的概率会创建三层的节点，以此类推。 
 每一个节点的每一层都指向下一个同层的节点。当寻找一个节点的时候，会从链表首节点的最高层开始，如果指向的节点大于要寻找的key，就一直前进，如果当前层指向为null，或者指向的下一个节点小于key，就下降一层。  
 而插入一个节点也是先找到第一个大于key的节点，再插入，动图如下。
-<iframe width=400 height=138 src="http://iridescent.com.cn/Reference/skiplist_insert.gif" ></iframe> 
+![skiplist](http://iridescent.com.cn/Reference/skiplist_insert.gif)
 
 在Redis中，skiplist添加了一个反向指针，每一个节点都会指向前一个相邻的节点，便于反向遍历。
 # 源码分析
