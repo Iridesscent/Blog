@@ -2,6 +2,9 @@
 title: Redis源码分析(3.1)-ae_epoll.c
 date: 2017-09-12 15:56:08
 tags:
+  - Redis
+categories:
+  - Redis源码分析
 ---
 # 总览
 ae_epoll.c是Redis中对linux下epoll系统调用的封装，调用原生的epoll要有很多的细节处理，统一了事件源IO事件（包括网络IO和文件IO），定时器事件。ae_epoll将epoll的一套系统调用封装的更加的human friendly～

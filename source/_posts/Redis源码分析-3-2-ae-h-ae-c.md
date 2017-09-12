@@ -2,6 +2,9 @@
 title: Redis源码分析(3.2)-ae.h/ae.c
 date: 2017-09-12 19:01:28
 tags:
+  - Redis
+categories:
+  - Redis源码分析
 ---
 # 总览
 ae是Redis内部的一个轻量级，高效率的事件驱动框架，统一了事件源（IO事件，定时器事件）以及回调方法接口。是整个Redis事件驱动的基础库。
