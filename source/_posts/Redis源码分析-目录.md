@@ -26,7 +26,7 @@ Redis是我读的第一个比较大的开源项目，我刚刚开始读源码的
 - 3. 事件驱动 
   - 1. ae_epoll.c
   - 2. ae.h/ae.c
-- 4. 网络IO
+- 4. 网络库
 - 5. Database
 - 6. Server
 - 7. Cluster
