@@ -74,6 +74,7 @@ static void anetSetError(char *err, const char *fmt, ...)
 
 // non_block == true 设置fd为非阻塞fd
 // non_block == false 设置fd为阻塞fd
+// 调用fcntl对fd进行设置
 int anetSetBlock(char *err, int fd, int non_block) {
     int flags;
 
@@ -110,20 +111,27 @@ int anetBlock(char *err, int fd) {
  * the probe send time, interval, and count. */
 int anetKeepAlive(char *err, int fd, int interval)
 {
+    // 通过setsockopt来对tcp/socket的属性进行设置。
+    // setsockopt的原形如下
+    // int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+    // sockfd为被设置sock的fd，level指定在协议栈哪一个层级进行设置，optname指定对哪个属性进行设置。
+    // optval传入要设置的属性，optlen传入optval指针传入的大小。
+    // 例如如果要在socket层级进行设置，level就要设置为SOL_SOCKET，如果要在tcp层级进行设置，level就要指定为IPPROTO_TCP，ip level为IPPROTO_IP，可以在<netinet/in.h>头文件中进行查看。
+    // socket层的设置可以在<asm-generic/socket.h>中进行查看
     int val = 1;
-
+    // socket keepalive设置为1（打开keep alive）
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
     {
         anetSetError(err, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
         return ANET_ERR;
     }
-
+    // 阅读以下代码前请在网上自行学习tcp keepalive 的基础知识。
 #ifdef __linux__
     /* Default settings are more or less garbage, with the keepalive time
      * set to 7200 by default on Linux. Modify settings to make the feature
      * actually useful. */
 
-    /* Send first probe after interval. */
+    /* Send first probe after interval. 多长时间链接没有活动就开始keep alive*/
     val = interval;
     if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
         anetSetError(err, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));
@@ -132,7 +140,7 @@ int anetKeepAlive(char *err, int fd, int interval)
 
     /* Send next probes after the specified interval. Note that we set the
      * delay as interval / 3, as we send three probes before detecting
-     * an error (see the next setsockopt call). */
+     * an error (see the next setsockopt call). 设置两次keep alive探测的间隔时间*/
     val = interval/3;
     if (val == 0) val = 1;
     if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
@@ -141,7 +149,7 @@ int anetKeepAlive(char *err, int fd, int interval)
     }
 
     /* Consider the socket in error state after three we send three ACK
-     * probes without getting a reply. */
+     * probes without getting a reply. 三次探测没有回应就挂掉*/
     val = 3;
     if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
         anetSetError(err, "setsockopt TCP_KEEPCNT: %s\n", strerror(errno));
@@ -154,6 +162,7 @@ int anetKeepAlive(char *err, int fd, int interval)
     return ANET_OK;
 }
 
+// 设置是否允许延时，及把小的数据包聚集成大的数据包一起发送。
 static int anetSetTcpNoDelay(char *err, int fd, int val)
 {
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
@@ -174,7 +183,7 @@ int anetDisableTcpNoDelay(char *err, int fd)
     return anetSetTcpNoDelay(err, fd, 0);
 }
 
-
+// 设置发送buffer大小
 int anetSetSendBuffer(char *err, int fd, int buffsize)
 {
     if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buffsize, sizeof(buffsize)) == -1)
@@ -184,7 +193,7 @@ int anetSetSendBuffer(char *err, int fd, int buffsize)
     }
     return ANET_OK;
 }
-
+// 打开keep alive
 int anetTcpKeepAlive(char *err, int fd)
 {
     int yes = 1;
@@ -194,7 +203,7 @@ int anetTcpKeepAlive(char *err, int fd)
     }
     return ANET_OK;
 }
-
+// 设置发送超时时间
 /* Set the socket send timeout (SO_SNDTIMEO socket option) to the specified
  * number of milliseconds, or disable it if the 'ms' argument is zero. */
 int anetSendTimeout(char *err, int fd, long long ms) {
@@ -250,7 +259,7 @@ int anetResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len) {
 int anetResolveIP(char *err, char *host, char *ipbuf, size_t ipbuf_len) {
     return anetGenericResolve(err,host,ipbuf,ipbuf_len,ANET_IP_ONLY);
 }
-
+// 一般来说 一个端口被释放两分钟后才能被使用，设置SO_REUSEADDR使得端口释放后立即可以被使用。
 static int anetSetReuseAddr(char *err, int fd) {
     int yes = 1;
     /* Make sure connection-intensive things like the redis benckmark
@@ -261,7 +270,7 @@ static int anetSetReuseAddr(char *err, int fd) {
     }
     return ANET_OK;
 }
-
+// 创建socket并设置reuse，保证何以快速open/close
 static int anetCreateSocket(char *err, int domain) {
     int s;
     if ((s = socket(domain, SOCK_STREAM, 0)) == -1) {
