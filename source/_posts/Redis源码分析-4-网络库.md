@@ -7,7 +7,7 @@ categories:
   - Redis源码分析
 ---
 # 总体介绍
-没什么新的功能，只是封装了一下系统调用的IO函数，简化一下API。尽管如此，感觉读一下这一款的源码还是有必要的，可以了解一下网络IO系统调用的细节，具体怎么控制之类的。
+没什么新的功能，只是封装了一下系统调用的IO函数，这样用起来就不会像原生api那样让人头大。尽管如此，感觉读一下这一款的源码还是有必要的，可以了解一下网络IO系统调用的细节以及各种参数的设置。
 
 # 源码分析
 基本上都是细节的东西，只在注释里添加了些许注解，补充一下网络IO接口知识。
@@ -286,10 +286,11 @@ static int anetCreateSocket(char *err, int domain) {
     }
     return s;
 }
-
+// 执行connect操作，用于被anetTcpConnect anetTcpNonBlockConnect等函数调用
+// source_addr 代表源地址，如果希望有bind操作的话。
 #define ANET_CONNECT_NONE 0
-#define ANET_CONNECT_NONBLOCK 1
-#define ANET_CONNECT_BE_BINDING 2 /* Best effort binding. */
+#define ANET_CONNECT_NONBLOCK 1 // 创建非阻塞连接
+#define ANET_CONNECT_BE_BINDING 2 /* Best effort binding. 如果设置了source_addr连接失败，就把source_addr设置为null再试一次，即最大努力bind*/
 static int anetTcpGenericConnect(char *err, char *addr, int port,
                                  char *source_addr, int flags)
 {
@@ -393,7 +394,7 @@ int anetTcpNonBlockBestEffortBindConnect(char *err, char *addr, int port,
     return anetTcpGenericConnect(err,addr,port,source_addr,
             ANET_CONNECT_NONBLOCK|ANET_CONNECT_BE_BINDING);
 }
-
+// uinx socket本机通信
 int anetUnixGenericConnect(char *err, char *path, int flags)
 {
     int s;
@@ -474,7 +475,7 @@ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int 
     }
     return ANET_OK;
 }
-
+// ipv6 only
 static int anetV6Only(char *err, int s) {
     int yes = 1;
     if (setsockopt(s,IPPROTO_IPV6,IPV6_V6ONLY,&yes,sizeof(yes)) == -1) {
@@ -484,7 +485,7 @@ static int anetV6Only(char *err, int s) {
     }
     return ANET_OK;
 }
-
+// 创建一个TCP server, af指定用ipv4协议还是ipv6协议
 static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
 {
     int s = -1, rv;
@@ -567,7 +568,7 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
     }
     return fd;
 }
-
+// accept一个tcp链接，把地址，端口分别写入ip，port中。
 int anetTcpAccept(char *err, int s, char *ip, size_t ip_len, int *port) {
     int fd;
     struct sockaddr_storage sa;
@@ -596,7 +597,7 @@ int anetUnixAccept(char *err, int s) {
 
     return fd;
 }
-
+// 根据fd解析出socket另一端的ip port信息。
 int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
@@ -649,7 +650,7 @@ int anetFormatPeer(int fd, char *buf, size_t buf_len) {
     anetPeerToString(fd,ip,sizeof(ip),&port);
     return anetFormatAddr(buf, buf_len, ip, port);
 }
-
+// 解析出当前socket绑定的地址。
 int anetSockName(int fd, char *ip, size_t ip_len, int *port) {
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
