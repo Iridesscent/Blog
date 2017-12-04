@@ -1,5 +1,5 @@
 ---
-title: Redis源码分析(2.5)-跳跃表
+title: Redis源码分析(2.5)-Skiplist
 date: 2017-09-06 21:07:43
 tags:
   - Redis
