@@ -121,13 +121,46 @@ typedef struct client {
     list *watched_keys;     /* Keys WATCHED for MULTI/EXEC CAS */
     dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
-    sds peerid;             /* Cached peer ID. */
+    sds peerid;             /* Cached peer ID . */
 
     /* Response buffer */
     int bufpos;
     char buf[PROTO_REPLY_CHUNK_BYTES];
 } client;
 ```
+client对象，注释非常全，看注释可以把功能了解各大概~具体等到用时再细说。  
+
+只说一个没有备注的字段obuf_soft_limit_reached_time
+redis server对output boffer的大小有限定，具体分为hard limit 和soft limit，如果超过hard limit的大小链接会被立刻终止，超过soft limit并且持续一定的秒数链接才会被终止，具体可以到redis的conf文件中查看。  
+而networking.c文件中的checkClientOutputBufferLimits方法会定期检查softlimit 和hardlimit，obuf_soft_limit_reached_time会记录第一次memory use达到softlimit的时间，如果后续检查内存使用还是高于softlimit并且时间超过了softlimit的允许时间，就会引发连接中断。
+```
+typedef void redisCommandProc(client *c);
+typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
+struct redisCommand {
+    char *name;  /* 命令名称 */
+    redisCommandProc *proc; /* 执行函数 */
+    int arity;
+    char *sflags; /* Flags as string representation, one char per flag. */
+    int flags;    /* The actual flags, obtained from the 'sflags' field. */
+    /* Use a function to determine keys arguments in a command line.
+     * Used for Redis Cluster redirect. */
+    redisGetKeysProc *getkeys_proc;
+    /* What keys should be loaded in background when calling this command? */
+    int firstkey; /* The first argument that's a key (0 = no keys) */
+    int lastkey;  /* The last argument that's a key */
+    int keystep;  /* The step between first and last key */
+    long long microseconds, calls;
+};
+```
+注释较全，补充几个。
+{% table %}
+|字段|含义|
+|---|:---:|
+|arity|表示命令参数数量限定，3表示三个参数，-3表示大于等于三个参数|
+|microseconds|该redisCommand的总执行时间|
+|calls|该redisCommand的执行次数|
+{% endtable %}
+microseconds/calls为平均执行时间，可以用作统计数据
 ## 数据定义
 
 ## API

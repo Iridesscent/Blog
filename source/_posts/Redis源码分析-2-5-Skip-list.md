@@ -45,7 +45,7 @@ typedef struct zskiplist {
 } zskiplist;
 ```
 Redis中的跳跃表如下图所示  
-![](https://iridescent.com.cn/Reference/skiplist_redis.png)
+![](http://iridescent.com.cn/Reference/skiplist_redis.png)
 ## API
 ### create
 ```
