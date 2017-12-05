@@ -30,18 +30,19 @@ Redis是我读的第一个比较大的开源项目，我刚刚开始读源码的
   - 2. ae.h/ae.c
 - 4. 网络库
 - 5. Database
-- 6. Server
-- 7. Cluster
+- 6. networking
+- 7. notify
 - 8. Multi
 - 9. rdb&aof
 - 10. pub&sub
 - 11. Background I/O
-- 12. Latency 检测
-- 13. networking
-- 14. notify
-- 15. client
-- 16. Redis运行流程
-- 17. 杂项（内置算法，内置regex等）
+- 12. server
+- 13. client
+- 14. Cluster
+- 15. Latency 检测
+- 16. replication
+- 17. Redis运行流程
+- 18. 杂项（内置算法，内置regex等）
 # PR
 如果文中有任何您觉得不正确的/看的不顺眼的/觉得我写的烂的 请随意向https://github.com/Iridesscent/Blog 这个项目发issue/pull request。
 # 参考资料 

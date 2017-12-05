@@ -283,7 +283,37 @@ robj *lookupKeyWrite(redisDb *db, robj *key) {
     return lookupKey(db,key,LOOKUP_NONE);
 }
 ```
-分别为读之前的touch和写之前的touch。写之前要淘汰掉TTL到达的key，防止写入失败。并且返回相应的value
+分别为读之前的touch和写之前的touch。写之前要淘汰掉TTL到达的key，防止写入失败。并且返回相应的value。
+```
+/* Add the key to the DB. It's up to the caller to increment the reference
+ * counter of the value if needed.
+ *
+ * The program is aborted if the key already exists. */
+void dbAdd(redisDb *db, robj *key, robj *val) {
+    sds copy = sdsdup(key->ptr);
+    int retval = dictAdd(db->dict, copy, val);
+
+    serverAssertWithInfo(NULL,key,retval == DICT_OK);
+    if (val->type == OBJ_LIST) signalListAsReady(db, key);
+    if (server.cluster_enabled) slotToKeyAdd(key);
+ }
+ 
+/* Delete a key, value, and associated expiration entry if any, from the DB */
+int dbDelete(redisDb *db, robj *key) {
+    /* Deleting an entry from the expires dict will not free the sds of
+     * the key, because it is shared with the main dictionary. */
+    if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+    if (dictDelete(db->dict,key->ptr) == DICT_OK) {
+        if (server.cluster_enabled) slotToKeyDel(key);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+```
+向database中添加kv，删除对应key，其他修改查询不再赘述。
+
+
 ### Hooks for space changes
 ```
 /*-----------------------------------------------------------------------------
@@ -303,7 +333,7 @@ void signalFlushedDb(int dbid) {
     touchWatchedKeysOnFlush(dbid);
 }
 ```
-两个hook函数分别在key改变后和database 执行flush操作之后执行。两个操作都与multi事物中的cas了关索有关。
+两个hook函数分别在key改变后和database 执行flush操作之后执行。两个操作都与multi事物中的cas了关锁有关。
 下面说一下hook函数涉及到的两个函数，touchWatchedKey和touchWatchedKeysOnFlush。
 ```
 /* "Touch" a key, so that if this key is being WATCHed by some client the
@@ -354,6 +384,143 @@ void touchWatchedKeysOnFlush(int dbid) {
     }
 }
 ```
+之前说过db->watched_keys维护了一个key到client的list的映射，表示有哪些client watch了相应的key。
+touchWatchedKey函数将key对应的所有client标记为CLIENT_DIRTY_CAS，表示该cas锁已脏。
+touchWatchedKeysOnFlush中遍历了所有的client，判断相应client监视中的key在不在要flush的database中，在的话标记为dirty。
 ### DB command 实现
+举几个栗子
+```
+
+/* EXISTS key1 key2 ... key_N.
+ * Return value is the number of keys existing. */
+void existsCommand(client *c) {
+    long long count = 0;
+    int j;
+
+    for (j = 1; j < c->argc; j++) {
+        expireIfNeeded(c->db,c->argv[j]);
+        if (dbExists(c->db,c->argv[j])) count++;
+    }
+    addReplyLongLong(c,count);
+}
+
+void selectCommand(client *c) {
+    long id;
+
+    if (getLongFromObjectOrReply(c, c->argv[1], &id,
+        "invalid DB index") != C_OK)
+        return;
+
+    if (server.cluster_enabled && id != 0) {
+        addReplyError(c,"SELECT is not allowed in cluster mode");
+        return;
+    }
+    if (selectDb(c,id) == C_ERR) {
+        addReplyError(c,"invalid DB index");
+    } else {
+        addReply(c,shared.ok);
+    }
+}
+```
+基本都是业务略及实现，没有什么好说的，此外涉及到了一些控制expire和networking的函数，expire本章接下来会讲，networking见相关章节。
 ### key失效控制
+```
+int removeExpire(redisDb *db, robj *key) {
+    /* An expire may only be removed if there is a corresponding entry in the
+     * main dict. Otherwise, the key will never be freed. */
+    serverAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
+    return dictDelete(db->expires,key->ptr) == DICT_OK;
+}
+
+void setExpire(redisDb *db, robj *key, long long when) {
+    dictEntry *kde, *de;
+
+    /* Reuse the sds from the main dict in the expire dict */
+    kde = dictFind(db->dict,key->ptr);
+    serverAssertWithInfo(NULL,key,kde != NULL);
+    de = dictReplaceRaw(db->expires,dictGetKey(kde));
+    dictSetSignedIntegerVal(de,when);
+}
+/* Return the expire time of the specified key, or -1 if no expire
+ * is associated with this key (i.e. the key is non volatile) */
+long long getExpire(redisDb *db, robj *key) {
+    dictEntry *de;
+
+    /* No expire? return ASAP */
+    if (dictSize(db->expires) == 0 ||
+       (de = dictFind(db->expires,key->ptr)) == NULL) return -1;
+
+    /* The entry was found in the expire dict, this means it should also
+     * be present in the main dict (safety check). */
+    serverAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
+    return dictGetSignedIntegerVal(de);
+}
+```
+分别是删除，设置，查询一个key的生存时间。
+```
+/* Propagate expires into slaves and the AOF file.
+ * When a key expires in the master, a DEL operation for this key is sent
+ * to all the slaves and the AOF file if enabled.
+ *
+ * This way the key expiry is centralized in one place, and since both
+ * AOF and the master->slave link guarantee operation ordering, everything
+ * will be consistent even if we allow write operations against expiring
+ * keys. */
+void propagateExpire(redisDb *db, robj *key) {
+    robj *argv[2];
+
+    argv[0] = shared.del;
+    argv[1] = key;
+    incrRefCount(argv[0]);
+    incrRefCount(argv[1]);
+
+    if (server.aof_state != AOF_OFF)
+        feedAppendOnlyFile(server.delCommand,db->id,argv,2);
+    replicationFeedSlaves(server.slaves,db->id,argv,2);
+
+    decrRefCount(argv[0]);
+    decrRefCount(argv[1]);
+}
+```
+向slave和aof文件传播失效信息。
+```
+int expireIfNeeded(redisDb *db, robj *key) {
+    mstime_t when = getExpire(db,key);
+    mstime_t now;
+
+    if (when < 0) return 0; /* No expire for this key */
+
+    /* Don't expire anything while loading. It will be done later. */
+    if (server.loading) return 0;
+
+    /* If we are in the context of a Lua script, we claim that time is
+     * blocked to when the Lua script started. This way a key can expire
+     * only the first time it is accessed and not in the middle of the
+     * script execution, making propagation to slaves / AOF consistent.
+     * See issue #1525 on Github for more information. */
+    now = server.lua_caller ? server.lua_time_start : mstime();
+
+    /* If we are running in the context of a slave, return ASAP:
+     * the slave key expiration is controlled by the master that will
+     * send us synthesized DEL operations for expired keys.
+     *
+     * Still we try to return the right information to the caller,
+     * that is, 0 if we think the key should be still valid, 1 if
+     * we think the key is expired at this time. */
+    if (server.masterhost != NULL) return now > when;
+
+    /* Return when this key has not expired */
+    if (now <= when) return 0;
+
+    /* Delete the key */
+    server.stat_expiredkeys++;
+    propagateExpire(db,key);
+    notifyKeyspaceEvent(NOTIFY_EXPIRED,
+        "expired",key,db->id);
+    return dbDelete(db,key);
+}
+```
+检查相应的key是否过期，如果过期就删除key并且将删除信息传播到slave和aof文件。
+
 ### API to get key arguments from commands
+略。
