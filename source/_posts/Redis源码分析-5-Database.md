@@ -9,6 +9,7 @@ categories:
 # 总览
 
 # 源码分析
+## 数据定义
 Redis database相关的代码主要存在于db.c 中，不过还要涉及一些其他的在源码中出现频率非常高的数据结构，例如 redisDb（server.h中）、redisObject/robj（server.h中）、client（server.h中）、redisCommand（server.h中）。  
 
 ```
@@ -161,6 +162,19 @@ struct redisCommand {
 |calls|该redisCommand的执行次数|
 {% endtable %}
 microseconds/calls为平均执行时间，可以用作统计数据
-## 数据定义
 
 ## API
+Database相关实现在db.c文件中，声明在server.h中，主要包含了一下几类的API
+1. C level Database API
+2. Hooks for space changes
+3. DB command 实现
+4. key失效控制
+5. API to get key arguments from commands  
+
+1提供了基本的增删改查操作，2每次进行相应变更时调用（signal database modified，signal db flush），3是一些database操作命令的具体实现，4是expires相关功能实现，5实现了从各种命令中抽取key。
+### C level Database API
+
+### Hooks for space changes
+### DB command 实现
+### key失效控制
+### API to get key arguments from commands
