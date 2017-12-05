@@ -173,8 +173,187 @@ Database相关实现在db.c文件中，声明在server.h中，主要包含了一
 
 1提供了基本的增删改查操作，2每次进行相应变更时调用（signal database modified，signal db flush），3是一些database操作命令的具体实现，4是expires相关功能实现，5实现了从各种命令中抽取key。
 ### C level Database API
+```
 
+/* Low level key lookup API, not actually called directly from commands
+ * implementations that should instead rely on lookupKeyRead(),
+ * lookupKeyWrite() and lookupKeyReadWithFlags(). */
+robj *lookupKey(redisDb *db, robj *key, int flags) {
+    dictEntry *de = dictFind(db->dict,key->ptr);
+    if (de) {
+        robj *val = dictGetVal(de);
+
+        /* Update the access time for the ageing algorithm.
+         * Don't do it if we have a saving child, as this will trigger
+         * a copy on write madness. */
+        if (server.rdb_child_pid == -1 &&
+            server.aof_child_pid == -1 &&
+            !(flags & LOOKUP_NOTOUCH))
+        {
+            val->lru = LRU_CLOCK();
+        }
+        return val;
+    } else {
+        return NULL;
+    }
+}
+```
+刷新key的LRU时间戳。  
+为防止出发copy on write，不在rdb/aof时刷新时间戳。
+```
+/* Lookup a key for read operations, or return NULL if the key is not found
+ * in the specified DB.
+ *
+ * As a side effect of calling this function:
+ * 1. A key gets expired if it reached it's TTL.
+ * 2. The key last access time is updated.
+ * 3. The global keys hits/misses stats are updated (reported in INFO).
+ *
+ * This API should not be used when we write to the key after obtaining
+ * the object linked to the key, but only for read only operations.
+ *
+ * Flags change the behavior of this command:
+ *
+ *  LOOKUP_NONE (or zero): no special flags are passed.
+ *  LOOKUP_NOTOUCH: don't alter the last access time of the key.
+ *
+ * Note: this function also returns NULL is the key is logically expired
+ * but still existing, in case this is a slave, since this API is called only
+ * for read operations. Even if the key expiry is master-driven, we can
+ * correctly report a key is expired on slaves even if the master is lagging
+ * expiring our key via DELs in the replication link. */
+robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
+    robj *val;
+
+    if (expireIfNeeded(db,key) == 1) {
+        /* Key expired. If we are in the context of a master, expireIfNeeded()
+         * returns 0 only when the key does not exist at all, so it's safe
+         * to return NULL ASAP. */
+        if (server.masterhost == NULL) return NULL;
+
+        /* However if we are in the context of a slave, expireIfNeeded() will
+         * not really try to expire the key, it only returns information
+         * about the "logical" status of the key: key expiring is up to the
+         * master in order to have a consistent view of master's data set.
+         *
+         * However, if the command caller is not the master, and as additional
+         * safety measure, the command invoked is a read-only command, we can
+         * safely return NULL here, and provide a more consistent behavior
+         * to clients accessign expired values in a read-only fashion, that
+         * will say the key as non exisitng.
+         *
+         * Notably this covers GETs when slaves are used to scale reads. */
+        if (server.current_client &&
+            server.current_client != server.master &&
+            server.current_client->cmd &&
+            server.current_client->cmd->flags & CMD_READONLY)
+        {
+            return NULL;
+        }
+    }
+    val = lookupKey(db,key,flags);
+    if (val == NULL)
+        server.stat_keyspace_misses++;
+    else
+        server.stat_keyspace_hits++;
+    return val;
+}
+```
+touch key with flag(LOOKUP_NONE 或者 LOOKUP_NOTOUCH)。  
+这个函数有以下几个影响
+As a side effect of calling this function:
+1. 淘汰掉到达TTL的key
+2. update key的最后访问时间（lru cluck）
+3. 全局（server层面），对key的hit/miss统计数据更新
+
+```
+/* Like lookupKeyReadWithFlags(), but does not use any flag, which is the
+ * common case. */
+robj *lookupKeyRead(redisDb *db, robj *key) {
+    return lookupKeyReadWithFlags(db,key,LOOKUP_NONE);
+}
+
+/* Lookup a key for write operations, and as a side effect, if needed, expires
+ * the key if its TTL is reached.
+ *
+ * Returns the linked value object if the key exists or NULL if the key
+ * does not exist in the specified DB. */
+robj *lookupKeyWrite(redisDb *db, robj *key) {
+    expireIfNeeded(db,key);
+    return lookupKey(db,key,LOOKUP_NONE);
+}
+```
+分别为读之前的touch和写之前的touch。写之前要淘汰掉TTL到达的key，防止写入失败。并且返回相应的value
 ### Hooks for space changes
+```
+/*-----------------------------------------------------------------------------
+ * Hooks for key space changes.
+ *
+ * Every time a key in the database is modified the function
+ * signalModifiedKey() is called.
+ *
+ * Every time a DB is flushed the function signalFlushDb() is called.
+ *----------------------------------------------------------------------------*/
+
+void signalModifiedKey(redisDb *db, robj *key) {
+    touchWatchedKey(db,key);
+}
+
+void signalFlushedDb(int dbid) {
+    touchWatchedKeysOnFlush(dbid);
+}
+```
+两个hook函数分别在key改变后和database 执行flush操作之后执行。两个操作都与multi事物中的cas了关索有关。
+下面说一下hook函数涉及到的两个函数，touchWatchedKey和touchWatchedKeysOnFlush。
+```
+/* "Touch" a key, so that if this key is being WATCHed by some client the
+ * next EXEC will fail. */
+void touchWatchedKey(redisDb *db, robj *key) {
+    list *clients;
+    listIter li;
+    listNode *ln;
+
+    if (dictSize(db->watched_keys) == 0) return;
+    clients = dictFetchValue(db->watched_keys, key);
+    if (!clients) return;
+
+    /* Mark all the clients watching this key as CLIENT_DIRTY_CAS */
+    /* Check if we are already watching for this key */
+    listRewind(clients,&li);
+    while((ln = listNext(&li))) {
+        client *c = listNodeValue(ln);
+
+        c->flags |= CLIENT_DIRTY_CAS;
+    }
+}
+
+/* On FLUSHDB or FLUSHALL all the watched keys that are present before the
+ * flush but will be deleted as effect of the flushing operation should
+ * be touched. "dbid" is the DB that's getting the flush. -1 if it is
+ * a FLUSHALL operation (all the DBs flushed). */
+void touchWatchedKeysOnFlush(int dbid) {
+    listIter li1, li2;
+    listNode *ln;
+
+    /* For every client, check all the waited keys */
+    listRewind(server.clients,&li1);
+    while((ln = listNext(&li1))) {
+        client *c = listNodeValue(ln);
+        listRewind(c->watched_keys,&li2);
+        while((ln = listNext(&li2))) {
+            watchedKey *wk = listNodeValue(ln);
+
+            /* For every watched key matching the specified DB, if the
+             * key exists, mark the client as dirty, as the key will be
+             * removed. */
+            if (dbid == -1 || wk->db->id == dbid) {
+                if (dictFind(wk->db->dict, wk->key->ptr) != NULL)
+                    c->flags |= CLIENT_DIRTY_CAS;
+            }
+        }
+    }
+}
+```
 ### DB command 实现
 ### key失效控制
 ### API to get key arguments from commands
