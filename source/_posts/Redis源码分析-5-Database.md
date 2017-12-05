@@ -9,6 +9,7 @@ categories:
 # 总览
 
 # 源码分析
+redis数据库相关代码存在于db.c中，为redis提供了基本的数据库实现，包括基础API，命令实现，key生命周期管理，查询参数解析等。
 ## 数据定义
 Redis database相关的代码主要存在于db.c 中，不过还要涉及一些其他的在源码中出现频率非常高的数据结构，例如 redisDb（server.h中）、redisObject/robj（server.h中）、client（server.h中）、redisCommand（server.h中）。  
 
