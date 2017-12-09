@@ -1,5 +1,5 @@
 ---
-title: '[转]实例浅析epoll的水平触发和边缘触发，以及边缘触发为什么要使用非阻塞IO'
+title: 'epoll LT&ET'
 id: 352
 categories:
   - Linux

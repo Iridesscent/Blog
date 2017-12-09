@@ -105,7 +105,7 @@ int anetNonBlock(char *err, int fd) {
 int anetBlock(char *err, int fd) {
     return anetSetBlock(err,fd,0);
 }
-
+// 将标号为fd的socket的keepalive设置为interval时间没反应就开始保活探测，每interval/3的时间探测一次，三次没反应认定tcp链接死掉
 /* Set TCP keep alive option to detect dead peers. The interval option
  * is only used for Linux as we are using Linux-specific APIs to set
  * the probe send time, interval, and count. */
@@ -162,7 +162,7 @@ int anetKeepAlive(char *err, int fd, int interval)
     return ANET_OK;
 }
 
-// 设置是否允许延时，及把小的数据包聚集成大的数据包一起发送。
+// 设置是否允许延时，即把小的数据包聚集成大的数据包一起发送。
 static int anetSetTcpNoDelay(char *err, int fd, int val)
 {
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
